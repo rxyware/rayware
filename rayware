@@ -2432,72 +2432,68 @@ end})
 ThemeSec:Button({Name="Refresh",Callback=function() Library:RefreshThemeList(ThemeListbox) end})  
 Library:RefreshThemeList(ThemeListbox)  
   
-local function scWriteExtra(name)
-	if not writefile then return end
-	local extra = {
-		selectedSkybox  = cfg.selectedSkybox  or "",
-		lightingMode    = cfg.lightingMode    or "",
-		currentMaterial = cfg.currentMaterial and tostring(cfg.currentMaterial) or "",
-		textureColorEnabled = cfg.textureColorEnabled or false,
-		textureColor    = cfg.textureColor and {cfg.textureColor.R, cfg.textureColor.G, cfg.textureColor.B} or {1,1,1},
-	}
-	pcall(writefile, Library.Folders.Configs.."/"..name..".rayware_extra", HttpService:JSONEncode(extra))
+-- Config helpers: inject/extract our button-only world state into the Library's JSON
+local function rwGetConfigJson()
+	local base = HttpService:JSONDecode(Library:GetConfig())
+	base._rw_selectedSkybox  = cfg.selectedSkybox  or ""
+	base._rw_lightingMode    = cfg.lightingMode    or ""
+	base._rw_currentMaterial = cfg.currentMaterial and tostring(cfg.currentMaterial) or ""
+	base._rw_texColorEnabled = cfg.textureColorEnabled or false
+	base._rw_texColor        = cfg.textureColor and {cfg.textureColor.R, cfg.textureColor.G, cfg.textureColor.B} or {1,1,1}
+	return HttpService:JSONEncode(base)
+end
+
+local function rwLoadConfigJson(json)
+	local ok, data = pcall(HttpService.JSONDecode, HttpService, json)
+	if not ok then return end
+	-- Pull out our extra keys before handing to Library
+	local skybox   = data._rw_selectedSkybox;  data._rw_selectedSkybox  = nil
+	local lighting = data._rw_lightingMode;     data._rw_lightingMode    = nil
+	local matStr   = data._rw_currentMaterial;  data._rw_currentMaterial = nil
+	local texOn    = data._rw_texColorEnabled;  data._rw_texColorEnabled = nil
+	local texCol   = data._rw_texColor;         data._rw_texColor        = nil
+	-- Let the Library restore all the widget-flagged values
+	Library:LoadConfig(HttpService:JSONEncode(data))
+	-- Now apply the extras
+	task.defer(function()
+		if skybox and skybox ~= "" then applySky(skybox) end
+		if lighting and lighting ~= "" then setLightingMode(lighting) end
+		if matStr and matStr ~= "" then
+			local ok2, mat = pcall(function()
+				local parts = matStr:split("."); return Enum.Material[parts[#parts]]
+			end)
+			if ok2 and mat then cfg.currentMaterial = mat; applyMat(mat) end
+		end
+		if texOn then
+			cfg.textureColorEnabled = true
+			if texCol then cfg.textureColor = Color3.new(texCol[1], texCol[2], texCol[3]) end
+			applyTextureColor(cfg.textureColor)
+		end
+		if cfg.rotatingSkybox then toggleRotatingSkybox(true) end
+		if cfg.fullbrightEnabled then toggleFB() end
+		if cfg.fogEnabled then setFog(true) end
+	end)
 end
 
 local CfgSec = SettingsTab:Section({Name="Configs", Side=2})  
 local ConfigListbox = CfgSec:Listbox({Name="Saved Configs",Flag="ConfigsList",Items={},Multi=false,Default=nil,Callback=function(v) end})  
 CfgSec:Textbox({Name="Name",Flag="ConfigName",Default="",Placeholder="config name...",Callback=function(v) end})  
-CfgSec:Button({Name="Create Config",Callback=function()  
-	local n=Library.Flags["ConfigName"]; if not n or n=="" then return end  
+CfgSec:Button({Name="Create Config",Callback=function()
+	local n=Library.Flags["ConfigName"]; if not n or n=="" then return end
 	if not isfile(Library.Folders.Configs.."/"..n..".json") then
-		writefile(Library.Folders.Configs.."/"..n..".json", Library:GetConfig())
-		scWriteExtra(n)
+		writefile(Library.Folders.Configs.."/"..n..".json", rwGetConfigJson())
 		Library:RefreshConfigsList(ConfigListbox)
 	end
-end}):SubButton({Name="Save Config",Callback=function()  
-	local sel=Library.Flags["ConfigsList"]; if sel then Library:SaveConfig(sel); scWriteExtra(sel) end  
-end})  
-CfgSec:Button({Name="Load Config",Callback=function()  
-	local sel=Library.Flags["ConfigsList"]; if sel then
-		Library:LoadConfig(readfile(Library.Folders.Configs.."/"..sel))
-		-- Restore button-driven world state that the Library config system can't save
-		-- (selectedSkybox, lightingMode, currentMaterial have no widget flags)
-		task.defer(function()
-			local extraPath = Library.Folders.Configs.."/"..sel..".rayware_extra"
-			if isfile and isfile(extraPath) then
-				local ok, extra = pcall(function() return HttpService:JSONDecode(readfile(extraPath)) end)
-				if ok and extra then
-					if extra.selectedSkybox and extra.selectedSkybox ~= "" then
-						applySky(extra.selectedSkybox)
-					end
-					if extra.lightingMode and extra.lightingMode ~= "" then
-						setLightingMode(extra.lightingMode)
-					end
-					if extra.currentMaterial and extra.currentMaterial ~= "" then
-						local ok2, mat = pcall(function()
-							local parts = tostring(extra.currentMaterial):split(".")
-							return Enum.Material[parts[#parts]]
-						end)
-						if ok2 and mat then cfg.currentMaterial = mat; applyMat(mat) end
-					end
-					if extra.textureColorEnabled then
-						cfg.textureColorEnabled = true
-						if extra.textureColor then
-							local c = extra.textureColor
-							cfg.textureColor = Color3.new(c[1], c[2], c[3])
-						end
-						applyTextureColor(cfg.textureColor)
-					end
-				end
-			end
-			-- Re-apply anything the Library widget callbacks should have handled
-			-- but may not have (e.g. rotatingSkybox toggle fires callback fine,
-			-- but fullbright/fog are covered just in case)
-			if cfg.rotatingSkybox then toggleRotatingSkybox(true) end
-			if cfg.fullbrightEnabled then toggleFB() end
-			if cfg.fogEnabled then setFog(true) end
-		end)
-	end  
+end}):SubButton({Name="Save Config",Callback=function()
+	local sel=Library.Flags["ConfigsList"]
+	if sel then writefile(Library.Folders.Configs.."/"..sel, rwGetConfigJson()) end
+end})
+CfgSec:Button({Name="Load Config",Callback=function()
+	local sel=Library.Flags["ConfigsList"]
+	if sel then
+		local ok, raw = pcall(readfile, Library.Folders.Configs.."/"..sel)
+		if ok and raw then rwLoadConfigJson(raw) end
+	end
 end}):SubButton({Name="Delete Config",Callback=function()  
 	local sel=Library.Flags["ConfigsList"]; if sel then Library:DeleteConfig(sel); Library:RefreshConfigsList(ConfigListbox) end  
 end})  
