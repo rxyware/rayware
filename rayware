@@ -428,6 +428,14 @@ local function scApplyOnHolder(holder, skinmodel)
 	clone.Parent=holder; clone:PivotTo(handle.CFrame)
 	for _,p in ipairs(clone:GetDescendants()) do if p:IsA("BasePart") then scWeld(handle,p) end end
 	handle.Transparency=1
+	-- Restore handle visibility when the tool is unequipped/dropped so it
+	-- doesn't stay invisible as a brick on the floor
+	holder.Unequipped:Connect(function()
+		local sm=holder:FindFirstChild("SkinModel")
+		if sm then sm:Destroy() end
+		local h=holder:FindFirstChild("Handle")
+		if scIsBasePart(h) then h.Transparency=0 end
+	end)
 end
 
 local function scRemoveSkin(holder)
@@ -453,13 +461,23 @@ local function scApplyTool(tool)
 	local wn=tool.Name:match("^%[(.+)%]$"); if not wn then return end
 	local key=scToolMap[wn]; if not key then return end
 	local skin=scSkins[key]
-	if not skin or skin=="None" then scRemoveSkin(tool); return end
+	-- Only touch the tool if a skin is actually selected — avoids any
+	-- WaitForChild yields or transparency mutations when no skin is active
+	if not skin or skin=="None" then return end
 	local model=scGetModel(wn, skin)
 	if model then pcall(scApplyOnHolder, tool, model) else scRemoveSkin(tool) end
 end
 
+local function scAnyActive()
+	for _,v in pairs(scSkins) do if v and v~="None" then return true end end
+	return false
+end
+
 local function scApplyChar(char)
 	if not char then return end
+	-- Skip entirely if no skins are selected — prevents unnecessary yields
+	-- and stops the skin changer from touching weapons when disabled
+	if not scAnyActive() then return end
 	for _,tool in ipairs(char:GetChildren()) do
 		if tool:IsA("Tool") then scApplyTool(tool) end
 	end
@@ -481,6 +499,7 @@ lp.CharacterAdded:Connect(function(char)
 	task.wait(0.5)
 	scApplyChar(char)
 	char.ChildAdded:Connect(function(child)
+		if not scAnyActive() then return end
 		if child:IsA("Tool") then task.wait(0.1); scApplyTool(child) end
 		if scHandleMap[child.Name] then task.defer(function() scApplyChar(char) end) end
 	end)
@@ -488,6 +507,7 @@ end)
 if lp.Character then
 	scApplyChar(lp.Character)
 	lp.Character.ChildAdded:Connect(function(child)
+		if not scAnyActive() then return end
 		if child:IsA("Tool") then task.wait(0.1); scApplyTool(child) end
 	end)
 end
@@ -2412,17 +2432,72 @@ end})
 ThemeSec:Button({Name="Refresh",Callback=function() Library:RefreshThemeList(ThemeListbox) end})  
 Library:RefreshThemeList(ThemeListbox)  
   
+local function scWriteExtra(name)
+	if not writefile then return end
+	local extra = {
+		selectedSkybox  = cfg.selectedSkybox  or "",
+		lightingMode    = cfg.lightingMode    or "",
+		currentMaterial = cfg.currentMaterial and tostring(cfg.currentMaterial) or "",
+		textureColorEnabled = cfg.textureColorEnabled or false,
+		textureColor    = cfg.textureColor and {cfg.textureColor.R, cfg.textureColor.G, cfg.textureColor.B} or {1,1,1},
+	}
+	pcall(writefile, Library.Folders.Configs.."/"..name..".rayware_extra", HttpService:JSONEncode(extra))
+end
+
 local CfgSec = SettingsTab:Section({Name="Configs", Side=2})  
 local ConfigListbox = CfgSec:Listbox({Name="Saved Configs",Flag="ConfigsList",Items={},Multi=false,Default=nil,Callback=function(v) end})  
 CfgSec:Textbox({Name="Name",Flag="ConfigName",Default="",Placeholder="config name...",Callback=function(v) end})  
 CfgSec:Button({Name="Create Config",Callback=function()  
 	local n=Library.Flags["ConfigName"]; if not n or n=="" then return end  
-	if not isfile(Library.Folders.Configs.."/"..n..".json") then writefile(Library.Folders.Configs.."/"..n..".json",Library:GetConfig()); Library:RefreshConfigsList(ConfigListbox) end  
+	if not isfile(Library.Folders.Configs.."/"..n..".json") then
+		writefile(Library.Folders.Configs.."/"..n..".json", Library:GetConfig())
+		scWriteExtra(n)
+		Library:RefreshConfigsList(ConfigListbox)
+	end
 end}):SubButton({Name="Save Config",Callback=function()  
-	local sel=Library.Flags["ConfigsList"]; if sel then Library:SaveConfig(sel) end  
+	local sel=Library.Flags["ConfigsList"]; if sel then Library:SaveConfig(sel); scWriteExtra(sel) end  
 end})  
 CfgSec:Button({Name="Load Config",Callback=function()  
-	local sel=Library.Flags["ConfigsList"]; if sel then Library:LoadConfig(readfile(Library.Folders.Configs.."/"..sel)) end  
+	local sel=Library.Flags["ConfigsList"]; if sel then
+		Library:LoadConfig(readfile(Library.Folders.Configs.."/"..sel))
+		-- Restore button-driven world state that the Library config system can't save
+		-- (selectedSkybox, lightingMode, currentMaterial have no widget flags)
+		task.defer(function()
+			local extraPath = Library.Folders.Configs.."/"..sel..".rayware_extra"
+			if isfile and isfile(extraPath) then
+				local ok, extra = pcall(function() return HttpService:JSONDecode(readfile(extraPath)) end)
+				if ok and extra then
+					if extra.selectedSkybox and extra.selectedSkybox ~= "" then
+						applySky(extra.selectedSkybox)
+					end
+					if extra.lightingMode and extra.lightingMode ~= "" then
+						setLightingMode(extra.lightingMode)
+					end
+					if extra.currentMaterial and extra.currentMaterial ~= "" then
+						local ok2, mat = pcall(function()
+							local parts = tostring(extra.currentMaterial):split(".")
+							return Enum.Material[parts[#parts]]
+						end)
+						if ok2 and mat then cfg.currentMaterial = mat; applyMat(mat) end
+					end
+					if extra.textureColorEnabled then
+						cfg.textureColorEnabled = true
+						if extra.textureColor then
+							local c = extra.textureColor
+							cfg.textureColor = Color3.new(c[1], c[2], c[3])
+						end
+						applyTextureColor(cfg.textureColor)
+					end
+				end
+			end
+			-- Re-apply anything the Library widget callbacks should have handled
+			-- but may not have (e.g. rotatingSkybox toggle fires callback fine,
+			-- but fullbright/fog are covered just in case)
+			if cfg.rotatingSkybox then toggleRotatingSkybox(true) end
+			if cfg.fullbrightEnabled then toggleFB() end
+			if cfg.fogEnabled then setFog(true) end
+		end)
+	end  
 end}):SubButton({Name="Delete Config",Callback=function()  
 	local sel=Library.Flags["ConfigsList"]; if sel then Library:DeleteConfig(sel); Library:RefreshConfigsList(ConfigListbox) end  
 end})  
