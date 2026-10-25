@@ -2108,10 +2108,10 @@ task.spawn(function()
 	end
 
 	-- Figure bounding box fractions (calibrated for Roblox 420x420 AvatarThumbnail)
-	local FIG_X = 0.24  -- figure left  edge (fraction of image width)
-	local FIG_W = 0.52  -- figure width  (fraction of image width)
-	local FIG_Y = 0.04  -- figure top   edge (fraction of image height)
-	local FIG_H = 0.93  -- figure height (fraction of image height)
+	local FIG_X = 0.10  -- figure left  edge (fraction of image width)
+	local FIG_W = 0.55  -- figure width  (fraction of image width)
+	local FIG_Y = 0.06  -- figure top   edge (fraction of image height)
+	local FIG_H = 0.88  -- figure height (fraction of image height)
 
 	local function updateBones(BX, BY, BW, BH)
 		for i, b in ipairs(boneLayout) do
