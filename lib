@@ -48,12 +48,56 @@ SelectLib.Theme = {
 }
 SelectLib.Themes = {
 	["Default"] = {
-		["Window Background"] = T.bg2,   ["Inline"] = T.panel,
-		["Section Background"]= T.bg3,   ["Element"] = T.off,
-		["Border"]            = T.border,["Outline"] = T.border,
-		["Dark Liner"]        = T.accentDim, ["Accent"] = T.accent, ["Risky"] = T.danger,
+		["Window Background"] = Color3.fromRGB(14,12,20),
+		["Inline"]            = Color3.fromRGB(20,16,30),
+		["Section Background"]= Color3.fromRGB(18,14,26),
+		["Element"]           = Color3.fromRGB(45,35,65),
+		["Border"]            = Color3.fromRGB(70,50,110),
+		["Outline"]           = Color3.fromRGB(50,35,80),
+		["Dark Liner"]        = Color3.fromRGB(55,35,90),
+		["Accent"]            = Color3.fromRGB(140,80,255),
+		["Risky"]             = Color3.fromRGB(255,70,70),
+	},
+	["Midnight"] = {
+		["Window Background"] = Color3.fromRGB(8,8,12),
+		["Inline"]            = Color3.fromRGB(12,12,18),
+		["Section Background"]= Color3.fromRGB(10,10,16),
+		["Element"]           = Color3.fromRGB(30,20,50),
+		["Border"]            = Color3.fromRGB(50,30,90),
+		["Outline"]           = Color3.fromRGB(35,20,70),
+		["Dark Liner"]        = Color3.fromRGB(40,20,80),
+		["Accent"]            = Color3.fromRGB(160,60,255),
+		["Risky"]             = Color3.fromRGB(255,70,70),
+	},
+	["Crimson"] = {
+		["Window Background"] = Color3.fromRGB(14,8,8),
+		["Inline"]            = Color3.fromRGB(22,10,10),
+		["Section Background"]= Color3.fromRGB(18,8,8),
+		["Element"]           = Color3.fromRGB(60,20,20),
+		["Border"]            = Color3.fromRGB(100,30,30),
+		["Outline"]           = Color3.fromRGB(80,20,20),
+		["Dark Liner"]        = Color3.fromRGB(90,25,25),
+		["Accent"]            = Color3.fromRGB(220,50,50),
+		["Risky"]             = Color3.fromRGB(255,70,70),
+	},
+	["Ocean"] = {
+		["Window Background"] = Color3.fromRGB(8,12,20),
+		["Inline"]            = Color3.fromRGB(10,18,30),
+		["Section Background"]= Color3.fromRGB(8,14,24),
+		["Element"]           = Color3.fromRGB(20,40,70),
+		["Border"]            = Color3.fromRGB(30,70,120),
+		["Outline"]           = Color3.fromRGB(20,55,100),
+		["Dark Liner"]        = Color3.fromRGB(25,60,110),
+		["Accent"]            = Color3.fromRGB(50,160,255),
+		["Risky"]             = Color3.fromRGB(255,70,70),
 	},
 }
+
+-- Track all themed instances for live recoloring
+local _themedInstances = {}  -- {instance=Frame/Label/etc, key="Accent", prop="BackgroundColor3"}
+local function trackThemed(instance, key, prop)
+	table.insert(_themedInstances, {inst=instance, key=key, prop=prop})
+end
 SelectLib.Flags = {}
 SelectLib.Tween = { Time=0.15, Style=Enum.EasingStyle.Quad, Direction=Enum.EasingDirection.Out }
 SelectLib.Folders = { Directory="Select", Configs="Select/Configs", Themes="Select/Themes", Assets="Select/Assets" }
@@ -479,20 +523,22 @@ function SelectLib:Window(data)
 			ZIndex=2,
 		})
 		iconLbl.TextXAlignment=Enum.TextXAlignment.Center
-		local tabTooltip = label(screenGui, {
+		local tabTooltip = Instance.new("Frame", screenGui)
+		tabTooltip.BackgroundColor3 = T.bg3
+		tabTooltip.BorderSizePixel = 0
+		tabTooltip.Size = UDim2.new(0,90,0,24)
+		tabTooltip.ZIndex = 20
+		tabTooltip.Visible = false
+		corner(tabTooltip, 4)
+		stroke(tabTooltip, T.border)
+		trackThemed(tabTooltip, "Section Background", "BackgroundColor3")
+		local tabTooltipLbl = label(tabTooltip, {
 			Text=pageName, Color=T.text,
 			Font=Enum.Font.GothamMedium, TextSize=12,
-			Size=UDim2.new(0,90,0,24),
+			Size=UDim2.new(1,0,1,0),
 			XAlign=Enum.TextXAlignment.Center,
-			ZIndex=20,
+			ZIndex=21,
 		})
-		do
-			local bg = Instance.new("Frame", tabTooltip); bg.Size=UDim2.new(1,0,1,0)
-			bg.BackgroundColor3=T.bg3; bg.BorderSizePixel=0; bg.ZIndex=19
-			corner(bg,4); stroke(bg,T.border)
-			tabTooltip.ZIndex=20; tabTooltip.BackgroundTransparency=1
-		end
-		tabTooltip.Visible=false
 
 		-- active indicator bar
 		local activeBar = frame(tabBtn, {
@@ -734,6 +780,7 @@ function SelectLib:Window(data)
 				})
 				corner(btn,6)
 				stroke(btn,T.border)
+				trackThemed(btn, "Inline", "BackgroundColor3")
 				btn.MouseEnter:Connect(function() tween(btn,{BackgroundColor3=T.bg3}) end)
 				btn.MouseLeave:Connect(function() tween(btn,{BackgroundColor3=T.panel}) end)
 				btn.MouseButton1Click:Connect(function()
@@ -746,14 +793,19 @@ function SelectLib:Window(data)
 				function widget:SubButton(sd)
 					local srow = rowFrame(22)
 					local sbtn = button(srow, {
-						Text="↳ "..sd.Name, Color=T.bg3, TextColor=T.textDim,
+						Text=sd.Name, Color=T.bg3, TextColor=T.textDim,
 						TextSize=11, Font=Enum.Font.GothamMedium,
 						Size=UDim2.new(1,0,1,0),
 					})
-					corner(sbtn,4)
-					sbtn.MouseEnter:Connect(function() tween(sbtn,{TextColor3=T.text}) end)
-					sbtn.MouseLeave:Connect(function() tween(sbtn,{TextColor3=T.textDim}) end)
-					sbtn.MouseButton1Click:Connect(function() if sd.Callback then sd.Callback() end end)
+					corner(sbtn,4); stroke(sbtn,T.border)
+					trackThemed(sbtn, "Section Background", "BackgroundColor3")
+					sbtn.MouseEnter:Connect(function() tween(sbtn,{BackgroundColor3=T.panel,TextColor3=T.text}) end)
+					sbtn.MouseLeave:Connect(function() tween(sbtn,{BackgroundColor3=T.bg3,TextColor3=T.textDim}) end)
+					sbtn.MouseButton1Click:Connect(function()
+						tween(sbtn,{BackgroundColor3=T.accentDim},0.05)
+						task.delay(0.1,function() tween(sbtn,{BackgroundColor3=T.bg3}) end)
+						if sd.Callback then sd.Callback() end
+					end)
 					return widget
 				end
 				return widget
@@ -774,11 +826,10 @@ function SelectLib:Window(data)
 				else
 					selected = default or (items[1] or "")
 				end
-				if flag then
-					SelectLib.Flags[flag] = multi and selected or selected
-				end
+				if flag then SelectLib.Flags[flag] = selected end
 
-				local ITEM_H = 20
+				local ITEM_H  = 22
+				local MAX_VIS = 8
 				local headerH = 14
 				local row = rowFrame(headerH + 26)
 
@@ -788,12 +839,13 @@ function SelectLib:Window(data)
 					Size=UDim2.new(1,0,0,headerH),
 				})
 
-				local display = multi
-					and (function()
-						local t={}; for k in pairs(selected) do table.insert(t,k) end
+				local function display()
+					if multi then
+						local t={}; for k in pairs(selected) do if selected[k] then table.insert(t,k) end end
 						return #t>0 and table.concat(t,", ") or "None"
-					end)
-					or function() return type(selected)=="string" and selected or "None" end
+					end
+					return type(selected)=="string" and selected or "None"
+				end
 
 				local dropBtn = button(row, {
 					Text=display().."  ▾", Color=T.panel, TextColor=T.text,
@@ -805,90 +857,133 @@ function SelectLib:Window(data)
 				dropBtn.TextXAlignment = Enum.TextXAlignment.Left
 				local dropPad = Instance.new("UIPadding",dropBtn)
 				dropPad.PaddingLeft=UDim.new(0,8)
-
-				-- list (rendered above/below in screenGui to avoid clipping)
-				local listFrame = frame(screenGui, {
-					Color=T.bg3, ZIndex=50,
-					Size=UDim2.new(0,0,0,0),
-					Name="DropList",
-				})
-				listFrame.Visible=false
-				corner(listFrame,6)
-				stroke(listFrame,T.border)
-				local listLayout = Instance.new("UIListLayout",listFrame)
-				listLayout.Padding=UDim.new(0,1); listLayout.SortOrder=Enum.SortOrder.LayoutOrder
-				local listPad=Instance.new("UIPadding",listFrame)
-				listPad.PaddingTop=UDim.new(0,3); listPad.PaddingBottom=UDim.new(0,3)
-				listPad.PaddingLeft=UDim.new(0,4); listPad.PaddingRight=UDim.new(0,4)
-
-				local optBtns = {}
-				local function isSelected(v)
-					return multi and selected[v] or selected==v
-				end
+				trackThemed(dropBtn, "Inline", "BackgroundColor3")
 
 				local function refreshDisplay()
 					dropBtn.Text = display().."  ▾"
 				end
 
-				local function buildList()
-					for _,c in ipairs(listFrame:GetChildren()) do
-						if c:IsA("TextButton") or c:IsA("Frame") then c:Destroy() end
-					end
-					optBtns={}
-					for i,opt in ipairs(items) do
-						local ob = button(listFrame, {
-							Text=opt, Color=Color3.fromRGB(0,0,0), TextColor=isSelected(opt) and T.accent or T.text,
-							TextSize=12, Font=Enum.Font.GothamMedium,
-							Size=UDim2.new(1,0,0,ITEM_H), ZIndex=51,
-						})
-						ob.BackgroundTransparency=1
-						ob.TextXAlignment=Enum.TextXAlignment.Left
-						local op2=Instance.new("UIPadding",ob);op2.PaddingLeft=UDim.new(0,4)
-						ob.MouseEnter:Connect(function() tween(ob,{BackgroundTransparency=0.7}) end)
-						ob.MouseLeave:Connect(function() tween(ob,{BackgroundTransparency=1}) end)
-						ob.MouseButton1Click:Connect(function()
-							if multi then
-								selected[opt]=not selected[opt] or nil
-								ob.TextColor3 = selected[opt] and T.accent or T.text
-							else
-								for _,b in ipairs(optBtns) do b.TextColor3=T.text end
-								selected=opt; ob.TextColor3=T.accent
-								listFrame.Visible=false
-								row.Size=UDim2.new(1,0,0,headerH+26)
-							end
-							refreshDisplay()
-							if flag then SelectLib.Flags[flag]=multi and selected or selected end
-							if d.Callback then d.Callback(multi and (function()
-								local t={}; for k,v in pairs(selected) do if v then table.insert(t,k) end end; return t
-							end)() or selected) end
-						end)
-						optBtns[i]=ob
-					end
-					local h = math.min(#items,8)*ITEM_H+8
-					listFrame.Size=UDim2.new(0,dropBtn.AbsoluteSize.X,0,h)
+				-- listFrame created lazily on first open to avoid empty-box artifacts
+				local listFrame = nil
+				local listSF    = nil
+				local optBtns   = {}
+				local open = false
+
+				local function ensureListFrame()
+					if listFrame then return end
+					listFrame = Instance.new("Frame", screenGui)
+					listFrame.BackgroundColor3 = T.bg3
+					listFrame.BorderSizePixel = 0
+					listFrame.ZIndex = 50
+					listFrame.Visible = false
+					listFrame.Name = "DropList"
+					corner(listFrame, 6)
+					stroke(listFrame, T.border)
+					trackThemed(listFrame, "Section Background", "BackgroundColor3")
+
+					listSF = Instance.new("ScrollingFrame", listFrame)
+					listSF.BackgroundTransparency = 1
+					listSF.BorderSizePixel = 0
+					listSF.Size = UDim2.new(1,0,1,0)
+					listSF.ScrollBarThickness = 3
+					listSF.ScrollBarImageColor3 = T.accentDim
+					listSF.AutomaticCanvasSize = Enum.AutomaticSize.Y
+					listSF.CanvasSize = UDim2.new(0,0,0,0)
+
+					local ll = Instance.new("UIListLayout", listSF)
+					ll.Padding = UDim.new(0,1)
+					ll.SortOrder = Enum.SortOrder.LayoutOrder
+					local lp2 = Instance.new("UIPadding", listSF)
+					lp2.PaddingTop=UDim.new(0,3); lp2.PaddingBottom=UDim.new(0,3)
+					lp2.PaddingLeft=UDim.new(0,4); lp2.PaddingRight=UDim.new(0,4)
 				end
 
-				local open=false
+				local function buildList()
+					ensureListFrame()
+					for _,c in ipairs(listSF:GetChildren()) do
+						if c:IsA("TextButton") then c:Destroy() end
+					end
+					optBtns={}
+					local function isSelected(v)
+						return multi and selected[v] or selected==v
+					end
+					for i,opt in ipairs(items) do
+						local ob = Instance.new("TextButton", listSF)
+						ob.Size = UDim2.new(1,0,0,ITEM_H)
+						ob.BackgroundColor3 = T.panel
+						ob.BackgroundTransparency = isSelected(opt) and 0.5 or 1
+						ob.BorderSizePixel = 0
+						ob.TextColor3 = isSelected(opt) and T.accent or T.text
+						ob.Font = Enum.Font.GothamMedium
+						ob.TextSize = 12
+						ob.Text = opt
+						ob.TextXAlignment = Enum.TextXAlignment.Left
+						ob.ZIndex = 51
+						local op2=Instance.new("UIPadding",ob); op2.PaddingLeft=UDim.new(0,8)
+						ob.MouseEnter:Connect(function()
+							if not isSelected(opt) then ob.BackgroundTransparency=0.7 end
+						end)
+						ob.MouseLeave:Connect(function()
+							ob.BackgroundTransparency = isSelected(opt) and 0.5 or 1
+						end)
+						ob.MouseButton1Click:Connect(function()
+							if multi then
+								selected[opt] = not selected[opt] or nil
+								ob.TextColor3 = selected[opt] and T.accent or T.text
+								ob.BackgroundTransparency = selected[opt] and 0.5 or 1
+							else
+								for _,b in ipairs(optBtns) do
+									b.TextColor3=T.text; b.BackgroundTransparency=1
+								end
+								selected=opt
+								ob.TextColor3=T.accent; ob.BackgroundTransparency=0.5
+								open=false; listFrame.Visible=false
+							end
+							refreshDisplay()
+							if flag then SelectLib.Flags[flag] = multi and (function()
+								local t={}
+								for k,v in pairs(selected) do if v then table.insert(t,k) end end
+								return t
+							end)() or selected end
+							if d.Callback then d.Callback(multi and (function()
+								local t={}
+								for k,v in pairs(selected) do if v then table.insert(t,k) end end
+								return t
+							end)() or selected) end
+						end)
+						optBtns[i] = ob
+					end
+					-- size: capped at MAX_VIS rows
+					local visH = math.min(#items, MAX_VIS) * ITEM_H + 8
+					listFrame.Size = UDim2.new(0, dropBtn.AbsoluteSize.X, 0, visH)
+				end
+
 				dropBtn.MouseButton1Click:Connect(function()
-					open=not open
+					open = not open
 					if open then
 						buildList()
-						local abs=dropBtn.AbsolutePosition
-						local sz=dropBtn.AbsoluteSize
-						listFrame.Position=UDim2.new(0,abs.X,0,abs.Y+sz.Y+2)
-						listFrame.Visible=true
-						row.Size=UDim2.new(1,0,0,headerH+26)
+						local abs = dropBtn.AbsolutePosition
+						local sz  = dropBtn.AbsoluteSize
+						-- flip above if near bottom of screen
+						local vpY = workspace.CurrentCamera.ViewportSize.Y
+						local listH = math.min(#items,MAX_VIS)*ITEM_H+8
+						local posY = abs.Y+sz.Y+2
+						if posY+listH > vpY-20 then posY = abs.Y-listH-2 end
+						listFrame.Position = UDim2.new(0,abs.X, 0,posY)
+						listFrame.Visible = true
 					else
-						listFrame.Visible=false
+						if listFrame then listFrame.Visible=false end
 					end
 				end)
 
-				-- close on click elsewhere
 				conn(UIS.InputBegan:Connect(function(i)
-					if i.UserInputType==Enum.UserInputType.MouseButton1 and open then
+					if i.UserInputType==Enum.UserInputType.MouseButton1 and open and listFrame then
 						local mp=UIS:GetMouseLocation()
-						local lp2=listFrame.AbsolutePosition; local ls=listFrame.AbsoluteSize
-						if not (mp.X>=lp2.X and mp.X<=lp2.X+ls.X and mp.Y>=lp2.Y and mp.Y<=lp2.Y+ls.Y) then
+						local lp3=listFrame.AbsolutePosition; local ls=listFrame.AbsoluteSize
+						local inDrop=mp.X>=lp3.X and mp.X<=lp3.X+ls.X and mp.Y>=lp3.Y and mp.Y<=lp3.Y+ls.Y
+						local babs=dropBtn.AbsolutePosition; local bsz=dropBtn.AbsoluteSize
+						local inBtn=mp.X>=babs.X and mp.X<=babs.X+bsz.X and mp.Y>=babs.Y and mp.Y<=babs.Y+bsz.Y
+						if not inDrop and not inBtn then
 							open=false; listFrame.Visible=false
 						end
 					end
@@ -896,14 +991,15 @@ function SelectLib:Window(data)
 
 				local widget={}
 				function widget:Set(v)
-					if multi then if type(v)=="table" then selected={} for _,k in ipairs(v) do selected[k]=true end end
+					if multi then
+						if type(v)=="table" then selected={}; for _,k in ipairs(v) do selected[k]=true end end
 					else selected=v end
 					if flag then SelectLib.Flags[flag]=multi and selected or selected end
 					refreshDisplay()
 					if d.Callback then d.Callback(v) end
 				end
 				function widget:Get() return multi and selected or selected end
-				function widget:SetItems(newItems) items=newItems end
+				function widget:SetItems(newItems) items=newItems; if listFrame then buildList() end end
 				return widget
 			end
 
@@ -1230,81 +1326,128 @@ function SelectLib:Window(data)
 
 		-- ── PlayerList ────────────────────────────────────────────────────────
 		function Page:PlayerList(d)
-			local col = colFrames[1] or colFrames[1]
-			-- scrollable list of players
+			local col = colFrames[1]
+
+			-- selected player tracking
+			local currentPlayer = nil
+			local playerStatuses = {}  -- [userId] = "Neutral"/"Friendly"/"Priority"
+
+			-- Status action bar
+			local actionBar = frame(col, {
+				Color=T.bg3, Size=UDim2.new(1,0,0,30),
+			})
+			corner(actionBar, 6); stroke(actionBar, T.border)
+			trackThemed(actionBar, "Section Background", "BackgroundColor3")
+			local actionLbl = label(actionBar, {
+				Text="Select a player", Color=T.textDim, TextSize=11,
+				Font=Enum.Font.GothamMedium,
+				Size=UDim2.new(1,-8,1,0), Position=UDim2.new(0,8,0,0),
+			})
+
+			-- Status buttons row
+			local statusBtnRow = frame(col, {
+				Color=Color3.fromRGB(0,0,0), Transparency=1,
+				Size=UDim2.new(1,0,0,26),
+			})
+			local statusLayout = Instance.new("UIListLayout", statusBtnRow)
+			statusLayout.FillDirection = Enum.FillDirection.Horizontal
+			statusLayout.Padding = UDim.new(0,4)
+			statusLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+			local statusColors = {
+				Neutral   = T.textDim,
+				Friendly  = Color3.fromRGB(80,220,120),
+				Priority  = Color3.fromRGB(220,80,80),
+			}
+
+			local function setPlayerStatus(plr, status)
+				if not plr then return end
+				playerStatuses[plr.UserId] = status
+				SelectLib.Flags["PlayerListPlayerStatus"] = status
+				actionLbl.Text = plr.DisplayName.." → "..status
+				actionLbl.TextColor3 = statusColors[status] or T.text
+				if d.Callback then d.Callback(plr) end
+			end
+
+			for _, statusName in ipairs({"Neutral","Friendly","Priority"}) do
+				local sb = button(statusBtnRow, {
+					Text=statusName, Color=T.panel, TextColor=statusColors[statusName] or T.text,
+					TextSize=11, Font=Enum.Font.GothamMedium,
+					Size=UDim2.new(0.32,0,1,0),
+				})
+				corner(sb,5); stroke(sb,T.border)
+				sb.MouseButton1Click:Connect(function()
+					if currentPlayer then setPlayerStatus(currentPlayer, statusName) end
+				end)
+			end
+
+			-- Player scroll list
 			local sf = Instance.new("ScrollingFrame", col)
 			sf.BackgroundColor3=T.panel; sf.BorderSizePixel=0
-			sf.Size=UDim2.new(1,0,0,300)
+			sf.Size=UDim2.new(1,0,0,260)
 			sf.ScrollBarThickness=3; sf.ScrollBarImageColor3=T.accentDim
 			sf.AutomaticCanvasSize=Enum.AutomaticSize.Y; sf.CanvasSize=UDim2.new(0,0,0,0)
 			corner(sf,6); stroke(sf,T.border)
-			local sfL=Instance.new("UIListLayout",sf); sfL.Padding=UDim.new(0,2); sfL.SortOrder=Enum.SortOrder.LayoutOrder
-			local sfP=Instance.new("UIPadding",sf); sfP.PaddingLeft=UDim.new(0,4); sfP.PaddingRight=UDim.new(0,4); sfP.PaddingTop=UDim.new(0,4)
+			trackThemed(sf, "Inline", "BackgroundColor3")
+			local sfL=Instance.new("UIListLayout",sf); sfL.Padding=UDim.new(0,3); sfL.SortOrder=Enum.SortOrder.LayoutOrder
+			local sfP=Instance.new("UIPadding",sf); sfP.PaddingLeft=UDim.new(0,4); sfP.PaddingRight=UDim.new(0,4); sfP.PaddingTop=UDim.new(0,4); sfP.PaddingBottom=UDim.new(0,4)
 
-			-- status dropdown below
-			local statusRow = frame(col, {Color=Color3.fromRGB(0,0,0),Transparency=1,Size=UDim2.new(1,0,0,24)})
-			local statusDrop = button(statusRow,{Text="Status: --",Color=T.panel,TextColor=T.textDim,TextSize=12,Font=Enum.Font.GothamMedium,Size=UDim2.new(1,0,1,0)})
-			corner(statusDrop,6); stroke(statusDrop,T.border)
+			local playerRows = {}
 
-			local statusOpts={"--","Neutral","Friendly","Priority"}
-			local statusOpen=false
-			local statusListF=frame(screenGui,{Color=T.bg3,ZIndex=50,Size=UDim2.new(0,160,0,#statusOpts*22+6),Name="StatusList"})
-			statusListF.Visible=false; corner(statusListF,6); stroke(statusListF,T.border)
-			local sll=Instance.new("UIListLayout",statusListF); sll.Padding=UDim.new(0,2); sll.SortOrder=Enum.SortOrder.LayoutOrder
-			local slp=Instance.new("UIPadding",statusListF); slp.PaddingTop=UDim.new(0,3); slp.PaddingBottom=UDim.new(0,3); slp.PaddingLeft=UDim.new(0,4); slp.PaddingRight=UDim.new(0,4)
-			for _,opt in ipairs(statusOpts) do
-				local ob=button(statusListF,{Text=opt,Color=Color3.fromRGB(0,0,0),TextColor=T.text,TextSize=12,Font=Enum.Font.GothamMedium,Size=UDim2.new(1,0,0,20),ZIndex=51})
-				ob.BackgroundTransparency=1; ob.TextXAlignment=Enum.TextXAlignment.Left
-				local op=Instance.new("UIPadding",ob); op.PaddingLeft=UDim.new(0,4)
-				ob.MouseButton1Click:Connect(function()
-					SelectLib.Flags["PlayerListPlayerStatus"]=opt
-					statusDrop.Text="Status: "..opt; statusListF.Visible=false; statusOpen=false
-				end)
-			end
-			statusDrop.MouseButton1Click:Connect(function()
-				statusOpen=not statusOpen
-				if statusOpen then
-					local abs=statusDrop.AbsolutePosition; local sz=statusDrop.AbsoluteSize
-					statusListF.Position=UDim2.new(0,abs.X,0,abs.Y+sz.Y+2)
-				end
-				statusListF.Visible=statusOpen
-			end)
-
-			local playerBtns={}
 			local function refreshPlayers()
 				for _,b in ipairs(sf:GetChildren()) do if b:IsA("Frame") then b:Destroy() end end
-				playerBtns={}
+				playerRows={}
 				for _,plr in ipairs(Players:GetPlayers()) do
 					if plr==lp then continue end
-					local prow=frame(sf,{Color=T.bg3,Size=UDim2.new(1,0,0,34)})
-					corner(prow,4)
+					local status = playerStatuses[plr.UserId] or "Neutral"
+					local statusCol = statusColors[status] or T.textDim
+
+					local prow=frame(sf,{Color=T.bg3,Size=UDim2.new(1,0,0,38)})
+					corner(prow,5)
+					trackThemed(prow, "Section Background", "BackgroundColor3")
+
+					-- left accent bar showing status color
+					local statusBar = frame(prow,{Color=statusCol,Size=UDim2.new(0,3,0.7,0),Position=UDim2.new(0,2,0.15,0)})
+					corner(statusBar,2)
+
 					-- avatar
 					local avatarImg=Instance.new("ImageLabel",prow)
-					avatarImg.Size=UDim2.new(0,28,0,28); avatarImg.Position=UDim2.new(0,2,0.5,-14)
+					avatarImg.Size=UDim2.new(0,28,0,28); avatarImg.Position=UDim2.new(0,10,0.5,-14)
 					avatarImg.BackgroundTransparency=1; avatarImg.BorderSizePixel=0
 					avatarImg.ScaleType=Enum.ScaleType.Fit
+					Instance.new("UICorner",avatarImg).CornerRadius=UDim.new(0,4)
 					task.spawn(function()
-						local ok2,img=pcall(function() return Players:GetUserThumbnailAsync(plr.UserId,Enum.ThumbnailType.HeadShot,Enum.ThumbnailSize.Size60x60) end)
+						local ok2,img=pcall(function()
+							return Players:GetUserThumbnailAsync(plr.UserId,Enum.ThumbnailType.HeadShot,Enum.ThumbnailSize.Size60x60)
+						end)
 						if ok2 and img then avatarImg.Image=img end
 					end)
-					Instance.new("UICorner",avatarImg).CornerRadius=UDim.new(0,4)
-					-- name
-					label(prow,{Text=plr.DisplayName,Color=T.text,TextSize=12,Font=Enum.Font.GothamBold,Size=UDim2.new(1,-36,0,16),Position=UDim2.new(0,34,0,4)})
-					label(prow,{Text="@"..plr.Name,Color=T.textDim,TextSize=10,Font=Enum.Font.GothamMedium,Size=UDim2.new(1,-36,0,12),Position=UDim2.new(0,34,0,20)})
-					local btn2=button(prow,{Text="",Color=Color3.fromRGB(0,0,0),Size=UDim2.new(1,0,1,0)})
-					btn2.BackgroundTransparency=1; btn2.ZIndex=5
+
+					-- display name + username
+					label(prow,{Text=plr.DisplayName,Color=T.text,TextSize=11,Font=Enum.Font.GothamBold,
+						Size=UDim2.new(1,-44,0,14),Position=UDim2.new(0,42,0,5)})
+					label(prow,{Text="@"..plr.Name.." | "..status,Color=statusCol,TextSize=10,Font=Enum.Font.GothamMedium,
+						Size=UDim2.new(1,-44,0,12),Position=UDim2.new(0,42,0,20)})
+
+					-- click to select
+					local btn2=Instance.new("TextButton",prow)
+					btn2.Size=UDim2.new(1,0,1,0); btn2.BackgroundTransparency=1
+					btn2.Text=""; btn2.BorderSizePixel=0; btn2.ZIndex=5
 					btn2.MouseEnter:Connect(function() tween(prow,{BackgroundColor3=T.panel}) end)
 					btn2.MouseLeave:Connect(function() tween(prow,{BackgroundColor3=T.bg3}) end)
 					btn2.MouseButton1Click:Connect(function()
-						SelectLib.Flags["PlayerListPlayerStatus"]="--"
-						statusDrop.Text="Status: --"
-						if d.Callback then d.Callback(plr) end
+						currentPlayer = plr
+						SelectLib.Flags["PlayerListPlayerStatus"] = playerStatuses[plr.UserId] or "Neutral"
+						local st = playerStatuses[plr.UserId] or "Neutral"
+						actionLbl.Text = plr.DisplayName.." (@"..plr.Name..") — "..st
+						actionLbl.TextColor3 = statusColors[st] or T.text
 					end)
-					table.insert(playerBtns,prow)
+					table.insert(playerRows, {prow=prow, plr=plr, statusBar=statusBar})
 				end
 			end
+
 			refreshPlayers()
-			conn(Players.PlayerAdded:Connect(refreshPlayers))
+			conn(Players.PlayerAdded:Connect(function() task.defer(refreshPlayers) end))
 			conn(Players.PlayerRemoving:Connect(function() task.defer(refreshPlayers) end))
 		end
 
@@ -1366,13 +1509,15 @@ function SelectLib:Window(data)
 
 	function Window:SaveConfig(name)
 		if not writefile then return end
-		local path=SelectLib.Folders.Configs.."/"..name
-		pcall(writefile,path,self:GetConfig())
+		local fname = name:match("%.json$") and name or (name..".json")
+		local path = SelectLib.Folders.Configs.."/"..fname
+		pcall(writefile, path, self:GetConfig())
 	end
 
 	function Window:DeleteConfig(name)
 		if not delfile then return end
-		pcall(delfile,SelectLib.Folders.Configs.."/"..name)
+		local fname = name:match("%.json$") and name or (name..".json")
+		pcall(delfile, SelectLib.Folders.Configs.."/"..fname)
 	end
 
 	function Window:RefreshConfigsList(listbox)
@@ -1425,8 +1570,28 @@ end
 -- ─── ChangeTheme ──────────────────────────────────────────────────────────────
 function SelectLib:ChangeTheme(key, color)
 	SelectLib.Theme[key] = color
-	-- live-update known colors
-	if key=="Accent" then T.accent=color end
+	-- Map theme keys to internal T table entries
+	local keyMap = {
+		["Window Background"] = {"bg2"},
+		["Inline"]            = {"panel"},
+		["Section Background"]= {"bg3"},
+		["Element"]           = {"off"},
+		["Border"]            = {"border"},
+		["Outline"]           = {"border"},
+		["Dark Liner"]        = {"accentDim"},
+		["Accent"]            = {"accent", "on"},
+		["Risky"]             = {"danger"},
+	}
+	local tkeys = keyMap[key]
+	if tkeys then
+		for _, tk in ipairs(tkeys) do T[tk] = color end
+	end
+	-- Live-update all tracked instances
+	for _, entry in ipairs(_themedInstances) do
+		if entry.key == key and entry.inst and entry.inst.Parent then
+			pcall(function() entry.inst[entry.prop] = color end)
+		end
+	end
 end
 
 -- SelectLib acts as the Library object — forward Window-level methods
