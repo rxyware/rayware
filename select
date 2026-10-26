@@ -42,7 +42,9 @@ getgenv().ARCHNEM = {
 			EasingConfig = { Calculation = 0.0, Delta = 0.0, Rapid = 0.0, Offset = 0.0, Controllage = 0.0 },
 			CustomEasingConfig = { Control = 0.0, Alpha = 1 },
 			CamSmooth = { Enabled = false, X = 0.15, Y = 0.15 },
-			PullResistance = { Enabled = false, Strength = 0.5 }
+			PullResistance = { Enabled = false, Strength = 0.5 },
+			AirStrafeCurve = { Enabled = false, Amount = 0.5 },
+			AirSpeed = { Enabled = false, Multiplier = 1.5 }
 		}
 	},
 	silent = {
@@ -2782,6 +2784,18 @@ UI.addToggle(aimModsSection, "Pull Resistance Enabled", false, function(val)
 end)
 UI.addSlider(aimModsSection, "Pull Resistance Strength", 0, 1, 0.5, true, function(val)
     getgenv().ARCHNEM.aimbot.Configuration.PullResistance.Strength = val
+end)
+UI.addToggle(aimModsSection, "Air Strafe Curve", false, function(val)
+    getgenv().ARCHNEM.aimbot.Configuration.AirStrafeCurve.Enabled = val
+end)
+UI.addSlider(aimModsSection, "Strafe Curve Amount", 0, 2, 0.5, true, function(val)
+    getgenv().ARCHNEM.aimbot.Configuration.AirStrafeCurve.Amount = val
+end)
+UI.addToggle(aimModsSection, "Air Speed Boost", false, function(val)
+    getgenv().ARCHNEM.aimbot.Configuration.AirSpeed.Enabled = val
+end)
+UI.addSlider(aimModsSection, "Air Speed Multiplier", 0, 5, 1.5, true, function(val)
+    getgenv().ARCHNEM.aimbot.Configuration.AirSpeed.Multiplier = val
 end)
 
 local aimEasingSection = UI.createSection(tabAimbot, "Easing Config", "right")
