@@ -94,9 +94,15 @@ SelectLib.Themes = {
 }
 
 -- Track all themed instances for live recoloring
-local _themedInstances = {}  -- {instance=Frame/Label/etc, key="Accent", prop="BackgroundColor3"}
+local _themedInstances = {}  -- {inst, key, prop}
 local function trackThemed(instance, key, prop)
 	table.insert(_themedInstances, {inst=instance, key=key, prop=prop})
+end
+
+-- Widget registry for config load callbacks
+local _widgetRegistry = {}  -- {flag=string, setter=function(value)}
+local function registerWidget(flag, setter)
+	if flag then _widgetRegistry[flag] = setter end
 end
 SelectLib.Flags = {}
 SelectLib.Tween = { Time=0.15, Style=Enum.EasingStyle.Quad, Direction=Enum.EasingDirection.Out }
@@ -571,7 +577,8 @@ function SelectLib:Window(data)
 		tabBtnBtn.MouseEnter:Connect(function()
 			if not Page.Active then tween(tabBtn,{BackgroundColor3=T.bg3},0.1) end
 			local abs = tabBtn.AbsolutePosition
-			tabTooltip.Position = UDim2.new(0, abs.X+SIDEBAR_W+4, 0, abs.Y+8)
+			local sz  = tabBtn.AbsoluteSize
+			tabTooltip.Position = UDim2.new(0, abs.X + sz.X + 6, 0, abs.Y + sz.Y/2 - 12)
 			tabTooltip.Visible = true
 		end)
 		tabBtnBtn.MouseLeave:Connect(function()
@@ -596,6 +603,7 @@ function SelectLib:Window(data)
 			secOuter.AutomaticSize = Enum.AutomaticSize.Y
 			corner(secOuter, 8)
 			stroke(secOuter, T.border)
+			trackThemed(secOuter, "Section Background", "BackgroundColor3")
 			-- subtle top gradient accent on section
 			local secGrad = frame(secOuter, {
 				Color=T.accentDim, Transparency=0.6,
@@ -610,19 +618,21 @@ function SelectLib:Window(data)
 				Size=UDim2.new(1,0,0,28),
 			})
 			corner(secHeader, 8)
+			trackThemed(secHeader, "Section Background", "BackgroundColor3")
 			local secTitle = label(secHeader, {
 				Text=secName, Color=T.accent,
 				Font=Enum.Font.GothamBold, TextSize=11,
 				Size=UDim2.new(1,-16,1,0), Position=UDim2.new(0,10,0,0),
 				XAlign=Enum.TextXAlignment.Left,
 			})
+			trackThemed(secTitle, "Accent", "TextColor3")
 			-- thin separator
 			local sep = frame(secOuter, {
 				Color=T.border,
 				Size=UDim2.new(1,0,0,1),
 				Position=UDim2.new(0,0,0,28),
 			})
-
+			trackThemed(sep, "Border", "BackgroundColor3")
 			-- Content holder
 			local secContent = frame(secOuter, {
 				Color=Color3.fromRGB(0,0,0), Transparency=1,
@@ -662,6 +672,7 @@ function SelectLib:Window(data)
 					Font=Enum.Font.GothamMedium,
 					Size=UDim2.new(1,-36,1,0), Position=UDim2.new(0,0,0,0),
 				})
+				trackThemed(lbl, "Accent", "TextColor3") -- intentionally not tracking text color here, keep white
 				-- pill toggle
 				local pill = frame(row, {
 					Color = value and T.on or T.off,
@@ -669,29 +680,30 @@ function SelectLib:Window(data)
 					Position=UDim2.new(1,-32,0.5,-7),
 				})
 				corner(pill, 7)
+				trackThemed(pill, "Element", "BackgroundColor3")
 				local knob = frame(pill, {
 					Color=T.text,
 					Size=UDim2.new(0,10,0,10),
 					Position=UDim2.new(0, value and 16 or 2, 0.5,-5),
 				})
 				corner(knob, 5)
-				local btn = button(row, {
-					Text="", Size=UDim2.new(1,0,1,0), Color=Color3.new(0,0,0),
-				})
-				btn.BackgroundTransparency=1; btn.ZIndex=5
+				local btn = Instance.new("TextButton", row)
+				btn.Size=UDim2.new(1,0,1,0); btn.BackgroundTransparency=1
+				btn.BorderSizePixel=0; btn.Text=""; btn.ZIndex=5
 
-				local function set(v)
+				local function set(v, noCallback)
 					value = v
 					if flag then SelectLib.Flags[flag] = v end
 					tween(pill, {BackgroundColor3 = v and T.on or T.off})
 					tween(knob, {Position = UDim2.new(0, v and 16 or 2, 0.5,-5)})
-					if d.Callback then d.Callback(v) end
+					if not noCallback and d.Callback then d.Callback(v) end
 				end
 
 				btn.MouseButton1Click:Connect(function() set(not value) end)
+				registerWidget(flag, function(v) set(v, true) end)
 
 				local widget = {}
-				function widget:Set(v) set(v) end
+				function widget:Set(v) set(v, true) end
 				function widget:Get() return value end
 				return widget
 			end
@@ -767,10 +779,9 @@ function SelectLib:Window(data)
 				local widget = {}
 				function widget:Set(v) updateVal(v) end
 				function widget:Get() return value end
+				registerWidget(flag, function(v) updateVal(v) end)
 				return widget
-			end
-
-			-- Button ──────────────────────────────────────────────────────────
+			end ──────────────────────────────────────────────────────────
 			function Section:Button(d)
 				local row = rowFrame(26)
 				local btn = button(row, {
@@ -1000,6 +1011,7 @@ function SelectLib:Window(data)
 				end
 				function widget:Get() return multi and selected or selected end
 				function widget:SetItems(newItems) items=newItems; if listFrame then buildList() end end
+				registerWidget(flag, function(v) widget:Set(v) end)
 				return widget
 			end
 
@@ -1039,6 +1051,7 @@ function SelectLib:Window(data)
 				local widget={}
 				function widget:Set(v) tb.Text=v; value=v; if flag then SelectLib.Flags[flag]=v end end
 				function widget:Get() return value end
+				registerWidget(flag, function(v) tb.Text=tostring(v); value=tostring(v) end)
 				return widget
 			end
 
@@ -1198,6 +1211,9 @@ function SelectLib:Window(data)
 					local w2={}
 					function w2:Set(c) value=c; h,s,v=Color3.toHSV(c); rebuild() end
 					function w2:Get() return value end
+					registerWidget(flag, function(c)
+						if typeof(c)=="Color3" then value=c; h,s,v=Color3.toHSV(c); pcall(rebuild) end
+					end)
 					return w2
 				end
 
@@ -1248,6 +1264,7 @@ function SelectLib:Window(data)
 					local kw={}
 					function kw:Set(v) value=v; if flag then SelectLib.Flags[flag]=v end; kbBtn.Text="["..dispKey(v).."]" end
 					function kw:Get() return value end
+					registerWidget(flag, function(v) if typeof(v)=="EnumItem" then kw:Set(v) end end)
 					return kw
 				end
 
@@ -1328,89 +1345,133 @@ function SelectLib:Window(data)
 		function Page:PlayerList(d)
 			local col = colFrames[1]
 
-			-- selected player tracking
-			local currentPlayer = nil
-			local playerStatuses = {}  -- [userId] = "Neutral"/"Friendly"/"Priority"
-
-			-- Status action bar
-			local actionBar = frame(col, {
-				Color=T.bg3, Size=UDim2.new(1,0,0,30),
-			})
-			corner(actionBar, 6); stroke(actionBar, T.border)
-			trackThemed(actionBar, "Section Background", "BackgroundColor3")
-			local actionLbl = label(actionBar, {
-				Text="Select a player", Color=T.textDim, TextSize=11,
-				Font=Enum.Font.GothamMedium,
-				Size=UDim2.new(1,-8,1,0), Position=UDim2.new(0,8,0,0),
-			})
-
-			-- Status buttons row
-			local statusBtnRow = frame(col, {
-				Color=Color3.fromRGB(0,0,0), Transparency=1,
-				Size=UDim2.new(1,0,0,26),
-			})
-			local statusLayout = Instance.new("UIListLayout", statusBtnRow)
-			statusLayout.FillDirection = Enum.FillDirection.Horizontal
-			statusLayout.Padding = UDim.new(0,4)
-			statusLayout.SortOrder = Enum.SortOrder.LayoutOrder
+			local currentPlayer  = nil
+			local playerStatuses = {}  -- [userId] = status string
+			local playerRowMap   = {}  -- [userId] = {statusBar, subLbl}
+			local searchText     = ""
 
 			local statusColors = {
-				Neutral   = T.textDim,
-				Friendly  = Color3.fromRGB(80,220,120),
-				Priority  = Color3.fromRGB(220,80,80),
+				Neutral  = Color3.fromRGB(130,120,150),
+				Friendly = Color3.fromRGB(80,220,120),
+				Priority = Color3.fromRGB(220,80,80),
 			}
 
-			local function setPlayerStatus(plr, status)
+			-- ── Search box ──────────────────────────────────────────────────
+			local searchFrame = frame(col, {Color=T.panel, Size=UDim2.new(1,0,0,28)})
+			corner(searchFrame, 6); stroke(searchFrame, T.border)
+			trackThemed(searchFrame, "Inline", "BackgroundColor3")
+			local searchBox = Instance.new("TextBox", searchFrame)
+			searchBox.Size = UDim2.new(1,-10,1,0); searchBox.Position = UDim2.new(0,5,0,0)
+			searchBox.BackgroundTransparency = 1; searchBox.BorderSizePixel = 0
+			searchBox.TextColor3 = T.text; searchBox.PlaceholderColor3 = T.textDim
+			searchBox.Font = Enum.Font.GothamMedium; searchBox.TextSize = 12
+			searchBox.PlaceholderText = "Search username..."; searchBox.Text = ""
+			searchBox.ClearTextOnFocus = false; searchBox.TextXAlignment = Enum.TextXAlignment.Left
+
+			-- ── Selected player info bar ─────────────────────────────────────
+			local infoBar = frame(col, {Color=T.bg3, Size=UDim2.new(1,0,0,48)})
+			corner(infoBar, 6); stroke(infoBar, T.border)
+			trackThemed(infoBar, "Section Background", "BackgroundColor3")
+			local infoAvatar = Instance.new("ImageLabel", infoBar)
+			infoAvatar.Size=UDim2.new(0,36,0,36); infoAvatar.Position=UDim2.new(0,6,0.5,-18)
+			infoAvatar.BackgroundTransparency=1; infoAvatar.BorderSizePixel=0
+			infoAvatar.ScaleType=Enum.ScaleType.Fit
+			Instance.new("UICorner",infoAvatar).CornerRadius=UDim.new(0,5)
+			local infoName = label(infoBar, {Text="No player selected", Color=T.text,
+				TextSize=12, Font=Enum.Font.GothamBold,
+				Size=UDim2.new(1,-50,0,16), Position=UDim2.new(0,48,0,7)})
+			local infoSub = label(infoBar, {Text="", Color=T.textDim,
+				TextSize=10, Font=Enum.Font.GothamMedium,
+				Size=UDim2.new(1,-50,0,12), Position=UDim2.new(0,48,0,26)})
+
+			local function updateInfoBar(plr)
+				if not plr then
+					infoName.Text="No player selected"; infoSub.Text=""
+					infoAvatar.Image=""; return
+				end
+				local st = playerStatuses[plr.UserId] or "Neutral"
+				infoName.Text = plr.DisplayName
+				infoName.TextColor3 = statusColors[st] or T.text
+				infoSub.Text = "@"..plr.Name.." | ID: "..plr.UserId.." | "..st
+				infoSub.TextColor3 = statusColors[st] or T.textDim
+				task.spawn(function()
+					local ok2,img=pcall(function()
+						return Players:GetUserThumbnailAsync(plr.UserId,Enum.ThumbnailType.HeadShot,Enum.ThumbnailSize.Size60x60)
+					end)
+					if ok2 and img then infoAvatar.Image=img end
+				end)
+			end
+
+			-- ── Status buttons ───────────────────────────────────────────────
+			local statusBtnRow = frame(col, {Color=Color3.fromRGB(0,0,0),Transparency=1,Size=UDim2.new(1,0,0,26)})
+			local statusLayout2 = Instance.new("UIListLayout",statusBtnRow)
+			statusLayout2.FillDirection=Enum.FillDirection.Horizontal
+			statusLayout2.Padding=UDim.new(0,4); statusLayout2.SortOrder=Enum.SortOrder.LayoutOrder
+
+			local function setStatus(plr, status)
 				if not plr then return end
+				local prevStatus = playerStatuses[plr.UserId]
 				playerStatuses[plr.UserId] = status
 				SelectLib.Flags["PlayerListPlayerStatus"] = status
-				actionLbl.Text = plr.DisplayName.." → "..status
-				actionLbl.TextColor3 = statusColors[status] or T.text
+				-- Update the row in the list without full rebuild
+				local rowData = playerRowMap[plr.UserId]
+				if rowData then
+					local sc = statusColors[status] or T.textDim
+					rowData.statusBar.BackgroundColor3 = sc
+					rowData.subLbl.Text = "@"..plr.Name.." | "..status
+					rowData.subLbl.TextColor3 = sc
+				end
+				updateInfoBar(plr)
 				if d.Callback then d.Callback(plr) end
 			end
 
 			for _, statusName in ipairs({"Neutral","Friendly","Priority"}) do
+				local sc = statusColors[statusName]
 				local sb = button(statusBtnRow, {
-					Text=statusName, Color=T.panel, TextColor=statusColors[statusName] or T.text,
+					Text=statusName, Color=T.panel, TextColor=sc,
 					TextSize=11, Font=Enum.Font.GothamMedium,
 					Size=UDim2.new(0.32,0,1,0),
 				})
 				corner(sb,5); stroke(sb,T.border)
+				trackThemed(sb,"Inline","BackgroundColor3")
+				sb.MouseEnter:Connect(function() tween(sb,{BackgroundColor3=T.bg3}) end)
+				sb.MouseLeave:Connect(function() tween(sb,{BackgroundColor3=T.panel}) end)
 				sb.MouseButton1Click:Connect(function()
-					if currentPlayer then setPlayerStatus(currentPlayer, statusName) end
+					if currentPlayer then setStatus(currentPlayer, statusName) end
 				end)
 			end
 
-			-- Player scroll list
+			-- ── Player scroll list ───────────────────────────────────────────
 			local sf = Instance.new("ScrollingFrame", col)
 			sf.BackgroundColor3=T.panel; sf.BorderSizePixel=0
-			sf.Size=UDim2.new(1,0,0,260)
+			sf.Size=UDim2.new(1,0,0,240)
 			sf.ScrollBarThickness=3; sf.ScrollBarImageColor3=T.accentDim
 			sf.AutomaticCanvasSize=Enum.AutomaticSize.Y; sf.CanvasSize=UDim2.new(0,0,0,0)
 			corner(sf,6); stroke(sf,T.border)
-			trackThemed(sf, "Inline", "BackgroundColor3")
+			trackThemed(sf,"Inline","BackgroundColor3")
 			local sfL=Instance.new("UIListLayout",sf); sfL.Padding=UDim.new(0,3); sfL.SortOrder=Enum.SortOrder.LayoutOrder
-			local sfP=Instance.new("UIPadding",sf); sfP.PaddingLeft=UDim.new(0,4); sfP.PaddingRight=UDim.new(0,4); sfP.PaddingTop=UDim.new(0,4); sfP.PaddingBottom=UDim.new(0,4)
-
-			local playerRows = {}
+			local sfP=Instance.new("UIPadding",sf)
+			sfP.PaddingLeft=UDim.new(0,4); sfP.PaddingRight=UDim.new(0,4)
+			sfP.PaddingTop=UDim.new(0,4); sfP.PaddingBottom=UDim.new(0,4)
 
 			local function refreshPlayers()
 				for _,b in ipairs(sf:GetChildren()) do if b:IsA("Frame") then b:Destroy() end end
-				playerRows={}
+				playerRowMap={}
+				local query = searchText:lower()
 				for _,plr in ipairs(Players:GetPlayers()) do
 					if plr==lp then continue end
+					if query~="" and not plr.Name:lower():find(query,1,true)
+						and not plr.DisplayName:lower():find(query,1,true) then continue end
+
 					local status = playerStatuses[plr.UserId] or "Neutral"
-					local statusCol = statusColors[status] or T.textDim
+					local sc = statusColors[status] or T.textDim
 
 					local prow=frame(sf,{Color=T.bg3,Size=UDim2.new(1,0,0,38)})
-					corner(prow,5)
-					trackThemed(prow, "Section Background", "BackgroundColor3")
+					corner(prow,5); trackThemed(prow,"Section Background","BackgroundColor3")
 
-					-- left accent bar showing status color
-					local statusBar = frame(prow,{Color=statusCol,Size=UDim2.new(0,3,0.7,0),Position=UDim2.new(0,2,0.15,0)})
+					local statusBar=frame(prow,{Color=sc,Size=UDim2.new(0,3,0.7,0),Position=UDim2.new(0,2,0.15,0)})
 					corner(statusBar,2)
 
-					-- avatar
 					local avatarImg=Instance.new("ImageLabel",prow)
 					avatarImg.Size=UDim2.new(0,28,0,28); avatarImg.Position=UDim2.new(0,10,0.5,-14)
 					avatarImg.BackgroundTransparency=1; avatarImg.BorderSizePixel=0
@@ -1423,28 +1484,30 @@ function SelectLib:Window(data)
 						if ok2 and img then avatarImg.Image=img end
 					end)
 
-					-- display name + username
 					label(prow,{Text=plr.DisplayName,Color=T.text,TextSize=11,Font=Enum.Font.GothamBold,
 						Size=UDim2.new(1,-44,0,14),Position=UDim2.new(0,42,0,5)})
-					label(prow,{Text="@"..plr.Name.." | "..status,Color=statusCol,TextSize=10,Font=Enum.Font.GothamMedium,
-						Size=UDim2.new(1,-44,0,12),Position=UDim2.new(0,42,0,20)})
+					local subLbl=label(prow,{Text="@"..plr.Name.." | "..status,Color=sc,TextSize=10,
+						Font=Enum.Font.GothamMedium,Size=UDim2.new(1,-44,0,12),Position=UDim2.new(0,42,0,20)})
 
-					-- click to select
+					playerRowMap[plr.UserId] = {statusBar=statusBar, subLbl=subLbl}
+
 					local btn2=Instance.new("TextButton",prow)
 					btn2.Size=UDim2.new(1,0,1,0); btn2.BackgroundTransparency=1
 					btn2.Text=""; btn2.BorderSizePixel=0; btn2.ZIndex=5
 					btn2.MouseEnter:Connect(function() tween(prow,{BackgroundColor3=T.panel}) end)
 					btn2.MouseLeave:Connect(function() tween(prow,{BackgroundColor3=T.bg3}) end)
 					btn2.MouseButton1Click:Connect(function()
-						currentPlayer = plr
-						SelectLib.Flags["PlayerListPlayerStatus"] = playerStatuses[plr.UserId] or "Neutral"
-						local st = playerStatuses[plr.UserId] or "Neutral"
-						actionLbl.Text = plr.DisplayName.." (@"..plr.Name..") — "..st
-						actionLbl.TextColor3 = statusColors[st] or T.text
+						currentPlayer=plr
+						SelectLib.Flags["PlayerListPlayerStatus"]=playerStatuses[plr.UserId] or "Neutral"
+						updateInfoBar(plr)
 					end)
-					table.insert(playerRows, {prow=prow, plr=plr, statusBar=statusBar})
 				end
 			end
+
+			searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+				searchText = searchBox.Text
+				refreshPlayers()
+			end)
 
 			refreshPlayers()
 			conn(Players.PlayerAdded:Connect(function() task.defer(refreshPlayers) end))
@@ -1476,17 +1539,23 @@ function SelectLib:Window(data)
 		local ok,data=pcall(HttpService.JSONDecode,HttpService,json)
 		if not ok or not data then return end
 		for flag,val in pairs(data) do
+			local parsed
 			if type(val)=="table" then
-				if val._type=="Color3" then SelectLib.Flags[flag]=Color3.new(val.r,val.g,val.b)
+				if val._type=="Color3" then parsed=Color3.new(val.r,val.g,val.b)
 				elseif val._type=="EnumItem" then
 					local parts=tostring(val.enum):split(".")
 					local ok2,ev=pcall(function() return Enum[parts[#parts-1]][parts[#parts]] end)
-					if ok2 and ev then SelectLib.Flags[flag]=ev end
+					if ok2 and ev then parsed=ev end
 				end
-			else SelectLib.Flags[flag]=val end
+			else parsed=val end
+			if parsed ~= nil then
+				SelectLib.Flags[flag]=parsed
+				-- Fire the registered widget setter so the UI updates visually
+				if _widgetRegistry[flag] then
+					pcall(_widgetRegistry[flag], parsed)
+				end
+			end
 		end
-		-- fire all widget callbacks by scanning flags
-		-- (widgets read from SelectLib.Flags on Set)
 	end
 
 	function Window:GetTheme()
